@@ -231,13 +231,17 @@
   }
 
   function localAudioUrl(text, langCode) {
-    const prefix = langPrefix(langCode);
-    const pack = (window.AUDIO_MANIFEST && window.AUDIO_MANIFEST[prefix]) || null;
-    if (!pack) return null;
-    const rel = pack[text];
-    if (!rel) return null;
-    // Same-origin relative URL (Brave-safe; not blocked by third-party shields).
-    return rel;
+    const manifest = window.AUDIO_MANIFEST || {};
+    const wanted = normalizeLang(langCode).toLowerCase();
+    const candidates = [wanted, langPrefix(wanted)];
+    for (const key of candidates) {
+      const pack = manifest[key];
+      if (pack && pack[text]) {
+        // Same-origin relative URL (Brave-safe; not blocked by third-party shields).
+        return pack[text];
+      }
+    }
+    return null;
   }
 
   // Keep this synchronous enough for autoplay policies: do not await before first play().
@@ -353,7 +357,7 @@
         </ol>
         <p style="color:var(--muted);margin:10px 0 0;line-height:1.6;">
           いまの軸は中国語。寄り道するなら <strong>世界の挨拶</strong> で音と文字に触れてから戻るのがおすすめです。
-          中国語の🔊はアプリ内音声なので、Braveでもそのまま鳴ります。
+          挨拶・中国語の🔊はアプリ内音声なので、Braveでもそのまま鳴ります。
         </p>
       </section>
 

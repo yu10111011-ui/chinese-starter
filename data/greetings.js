@@ -404,7 +404,7 @@ window.WORLD_GREETINGS = {
       country: "ハワイ（米国）",
       region: "オセアニア",
       flag: "🌺",
-      lang: "en-US",
+      lang: "haw",
       phrases: [
         { text: "Aloha", roman: "a-lo-ha", ja: "こんにちは / 愛", kind: "hello" },
         { text: "Mahalo", roman: "ma-ha-lo", ja: "ありがとう", kind: "thanks" },
@@ -417,7 +417,7 @@ window.WORLD_GREETINGS = {
       country: "ニュージーランド",
       region: "オセアニア",
       flag: "🇳🇿",
-      lang: "en-NZ",
+      lang: "mi",
       phrases: [
         { text: "Kia ora", roman: "kee-a o-ra", ja: "こんにちは", kind: "hello" },
         { text: "Ngā mihi", roman: "nga mee-hee", ja: "ありがとう", kind: "thanks" },
