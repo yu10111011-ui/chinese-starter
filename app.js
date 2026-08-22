@@ -123,52 +123,118 @@
     }, 5200);
   }
 
-  function speakOnlineFallback(text, langCode) {
-    if (ttsAudio) {
+  function stopAudio() {
+    if (!ttsAudio) return;
+    try {
       ttsAudio.pause();
-      ttsAudio = null;
+      ttsAudio.removeAttribute("src");
+      ttsAudio.load();
+    } catch {
+      /* ignore */
     }
+    ttsAudio = null;
+  }
+
+  function onlineTtsCandidates(text, langCode) {
     const tl = normalizeLang(langCode);
-    const url =
-      "https://translate.google.com/translate_tts?ie=UTF-8&client=tw-ob&tl=" +
-      encodeURIComponent(tl) +
-      "&q=" +
-      encodeURIComponent(text);
-    ttsAudio = new Audio(url);
-    return ttsAudio.play().catch(() => {
-      showVoiceToast(
-        `「${tl}」の音声が端末にありません。オンライン再生にも失敗しました。別ブラウザか音声パック追加を試してください。`
+    const prefix = langPrefix(tl);
+    const q = encodeURIComponent(text);
+    const list = [];
+
+    // Chinese: Youdao is more reliable than Google from github.io.
+    if (prefix === "zh") {
+      list.push(`https://dict.youdao.com/dictvoice?audio=${q}&le=zh`);
+      list.push(`https://dict.youdao.com/dictvoice?audio=${q}&type=0`);
+    }
+
+    // Google Translate TTS (needs referrerPolicy=no-referrer).
+    list.push(
+      `https://translate.google.com/translate_tts?ie=UTF-8&client=tw-ob&tl=${encodeURIComponent(tl)}&q=${q}`
+    );
+    if (tl.includes("-")) {
+      list.push(
+        `https://translate.google.com/translate_tts?ie=UTF-8&client=tw-ob&tl=${encodeURIComponent(prefix)}&q=${q}`
       );
+    }
+    return list;
+  }
+
+  function playAudioUrl(url) {
+    return new Promise((resolve, reject) => {
+      stopAudio();
+      const audio = new Audio();
+      ttsAudio = audio;
+      audio.preload = "auto";
+      audio.referrerPolicy = "no-referrer";
+      let settled = false;
+      const ok = () => {
+        if (!settled) {
+          settled = true;
+          resolve();
+        }
+      };
+      const fail = (err) => {
+        if (!settled) {
+          settled = true;
+          reject(err || new Error("audio failed"));
+        }
+      };
+      audio.onerror = () => fail(new Error("audio error"));
+      audio.src = url;
+      const playResult = audio.play();
+      if (playResult && typeof playResult.then === "function") {
+        playResult.then(ok).catch(fail);
+      } else {
+        ok();
+      }
     });
   }
 
-  function speakWithVoice(text, voice, langCode) {
-    window.speechSynthesis.cancel();
-    const utter = new SpeechSynthesisUtterance(text);
-    utter.lang = voice.lang || normalizeLang(langCode);
-    utter.voice = voice;
-    utter.rate = 0.9;
-    window.speechSynthesis.speak(utter);
-  }
-
-  async function speak(text, langCode = "zh-CN") {
-    if (!text) return;
-    const wanted = normalizeLang(langCode);
-
-    if (window.speechSynthesis && cachedVoices.length === 0) {
-      refreshVoices();
-      if (cachedVoices.length === 0) {
-        await new Promise((resolve) => {
-          const done = () => {
-            window.speechSynthesis.removeEventListener("voiceschanged", done);
-            resolve();
-          };
-          window.speechSynthesis.addEventListener("voiceschanged", done);
-          setTimeout(done, 700);
-        });
-        refreshVoices();
+  async function speakOnlineFallback(text, langCode) {
+    const urls = onlineTtsCandidates(text, langCode);
+    let lastError = null;
+    for (const url of urls) {
+      try {
+        await playAudioUrl(url);
+        return true;
+      } catch (err) {
+        lastError = err;
       }
     }
+    showVoiceToast(
+      `音声を再生できませんでした（${normalizeLang(langCode)}）。もう一度押すか、Edge/Chromeで開き直してください。`
+    );
+    console.warn("TTS online fallback failed", lastError);
+    return false;
+  }
+
+  function speakWithVoice(text, voice, langCode) {
+    if (!window.speechSynthesis) return false;
+    window.speechSynthesis.cancel();
+    // Chrome can drop utterances if speak() is called immediately after cancel().
+    const utter = new SpeechSynthesisUtterance(text);
+    utter.lang = voice?.lang || normalizeLang(langCode);
+    if (voice) utter.voice = voice;
+    utter.rate = 0.9;
+    utter.onerror = () => {
+      speakOnlineFallback(text, langCode);
+    };
+    setTimeout(() => {
+      try {
+        window.speechSynthesis.resume();
+        window.speechSynthesis.speak(utter);
+      } catch {
+        speakOnlineFallback(text, langCode);
+      }
+    }, 40);
+    return true;
+  }
+
+  // Keep this synchronous enough for autoplay policies: do not await before first play().
+  function speak(text, langCode = "zh-CN") {
+    if (!text) return;
+    const wanted = normalizeLang(langCode);
+    refreshVoices();
 
     const cached = preferredVoiceByLang[wanted];
     const voice = cached || pickVoiceForLang(cachedVoices, wanted);
@@ -179,9 +245,11 @@
       return;
     }
 
+    // No matching OS voice (common on Japanese Windows). Use online audio immediately
+    // while still inside the user-click gesture — awaiting voiceschanged would break play().
     if (!voiceWarningShown[wanted]) {
       voiceWarningShown[wanted] = true;
-      showVoiceToast(`端末に「${wanted}」ボイスがないため、オンライン発音に切り替えます。`);
+      showVoiceToast(`端末に「${wanted}」ボイスがないため、オンライン発音を使います。`);
     }
     speakOnlineFallback(text, wanted);
   }
