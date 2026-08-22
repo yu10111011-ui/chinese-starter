@@ -10,6 +10,7 @@
     cardIndex: 0,
     cardFlipped: false,
     cardFilter: "all",
+    greetRegion: "すべて",
     quizIndex: 0,
     quizScore: 0,
     quizAnswered: false,
@@ -48,46 +49,56 @@
   }
 
   let cachedVoices = [];
-  let preferredZhVoice = null;
+  const preferredVoiceByLang = Object.create(null);
   let ttsAudio = null;
-  let voiceWarningShown = false;
+  const voiceWarningShown = Object.create(null);
 
   function refreshVoices() {
     if (!window.speechSynthesis) return;
     cachedVoices = window.speechSynthesis.getVoices() || [];
-    preferredZhVoice = pickChineseVoice(cachedVoices);
   }
 
-  function scoreChineseVoice(voice) {
+  function normalizeLang(code) {
+    return String(code || "zh-CN").replace(/_/g, "-");
+  }
+
+  function langPrefix(code) {
+    return normalizeLang(code).split("-")[0].toLowerCase();
+  }
+
+  function scoreVoiceForLang(voice, wantedLang) {
+    const wanted = normalizeLang(wantedLang).toLowerCase();
+    const wantedPrefix = langPrefix(wanted);
     const lang = (voice.lang || "").replace(/_/g, "-").toLowerCase();
     const name = (voice.name || "").toLowerCase();
     const blob = `${lang} ${name}`;
+    const voicePrefix = lang.split("-")[0];
 
-    // Never use Japanese / Korean / etc. for Chinese text.
-    if (/^ja\b|japanese|日本語|ヒラギノ|haruka|ayumi|ichiro|kyoko|ojiisan|sayaka|show/.test(blob)) {
+    // Never use Japanese for non-Japanese text (漢字を日本語読みしてしまう)。
+    if (wantedPrefix !== "ja" && (/^ja\b|japanese|日本語|ヒラギノ|haruka|ayumi|ichiro|kyoko/.test(blob))) {
       return -1000;
     }
 
     let score = 0;
-    if (lang === "zh-cn" || lang === "zh-hans" || lang === "cmn-hans-cn") score += 100;
-    else if (lang.startsWith("zh-cn")) score += 90;
-    else if (lang.startsWith("zh-hans")) score += 85;
-    else if (lang === "zh" || lang.startsWith("zh-")) score += 50;
-    else if (/chinese|中文|普通话|國語|国语|mandarin/.test(blob)) score += 40;
+    if (lang === wanted) score += 100;
+    else if (lang.startsWith(wanted)) score += 90;
+    else if (voicePrefix === wantedPrefix) score += 70;
+    else if (blob.includes(wantedPrefix)) score += 40;
     else return -1;
 
-    // Prefer Mainland / Simplified.
-    if (/yaoyao|huihui|xiaoxiao|xiaoyi|yunxi|yunyang|zh-cn|simplified|普通话|中国/.test(blob)) score += 30;
-    if (/taiwan|zh-tw|hk|hong kong|cantonese|粤|yue/.test(blob)) score -= 20;
+    if (wantedPrefix === "zh") {
+      if (/yaoyao|huihui|xiaoxiao|yunxi|yunyang|simplified|普通话|中国|zh-cn/.test(blob)) score += 30;
+      if (/taiwan|zh-tw|hk|cantonese|粤|yue/.test(blob)) score -= 20;
+    }
     if (voice.localService) score += 5;
     return score;
   }
 
-  function pickChineseVoice(voices) {
+  function pickVoiceForLang(voices, wantedLang) {
     let best = null;
     let bestScore = 0;
     for (const voice of voices) {
-      const score = scoreChineseVoice(voice);
+      const score = scoreVoiceForLang(voice, wantedLang);
       if (score > bestScore) {
         best = voice;
         bestScore = score;
@@ -112,36 +123,38 @@
     }, 5200);
   }
 
-  function speakOnlineFallback(text) {
+  function speakOnlineFallback(text, langCode) {
     if (ttsAudio) {
       ttsAudio.pause();
       ttsAudio = null;
     }
-    // Short phrases only; used when the OS has no Chinese voice.
+    const tl = normalizeLang(langCode);
     const url =
-      "https://translate.google.com/translate_tts?ie=UTF-8&client=tw-ob&tl=zh-CN&q=" +
+      "https://translate.google.com/translate_tts?ie=UTF-8&client=tw-ob&tl=" +
+      encodeURIComponent(tl) +
+      "&q=" +
       encodeURIComponent(text);
     ttsAudio = new Audio(url);
     return ttsAudio.play().catch(() => {
       showVoiceToast(
-        "中国語ボイスが見つかりません。Windowsの「設定 → 時刻と言語 → 音声」で中国語（簡体字）の音声を追加してください。"
+        `「${tl}」の音声が端末にありません。オンライン再生にも失敗しました。別ブラウザか音声パック追加を試してください。`
       );
     });
   }
 
-  function speakWithVoice(text, voice) {
+  function speakWithVoice(text, voice, langCode) {
     window.speechSynthesis.cancel();
     const utter = new SpeechSynthesisUtterance(text);
-    utter.lang = voice.lang || "zh-CN";
+    utter.lang = voice.lang || normalizeLang(langCode);
     utter.voice = voice;
     utter.rate = 0.9;
     window.speechSynthesis.speak(utter);
   }
 
-  async function speak(text) {
+  async function speak(text, langCode = "zh-CN") {
     if (!text) return;
+    const wanted = normalizeLang(langCode);
 
-    // Ensure voices are loaded (Chrome/Edge often return [] until voiceschanged).
     if (window.speechSynthesis && cachedVoices.length === 0) {
       refreshVoices();
       if (cachedVoices.length === 0) {
@@ -157,20 +170,20 @@
       }
     }
 
-    const voice = preferredZhVoice || pickChineseVoice(cachedVoices);
-    preferredZhVoice = voice;
+    const cached = preferredVoiceByLang[wanted];
+    const voice = cached || pickVoiceForLang(cachedVoices, wanted);
+    if (voice) preferredVoiceByLang[wanted] = voice;
 
     if (voice) {
-      speakWithVoice(text, voice);
+      speakWithVoice(text, voice, wanted);
       return;
     }
 
-    // Do NOT fall back to Japanese OS voice (it reads 汉字 as Japanese).
-    if (!voiceWarningShown) {
-      voiceWarningShown = true;
-      showVoiceToast("端末に中国語ボイスがないため、オンライン発音に切り替えます。");
+    if (!voiceWarningShown[wanted]) {
+      voiceWarningShown[wanted] = true;
+      showVoiceToast(`端末に「${wanted}」ボイスがないため、オンライン発音に切り替えます。`);
     }
-    speakOnlineFallback(text);
+    speakOnlineFallback(text, wanted);
   }
 
   function setRoute(route, lessonId = null) {
@@ -224,8 +237,8 @@
           </p>
           <div class="hero-actions">
             <button class="btn btn-primary" data-go="lessons">レッスンを始める</button>
-            <button class="btn btn-secondary" data-go="tones">声調を見る</button>
-            <button class="btn btn-ghost" data-go="cards">カードで復習</button>
+            <button class="btn btn-secondary" data-go="greetings">世界の挨拶</button>
+            <button class="btn btn-ghost" data-go="tones">声調を見る</button>
           </div>
         </div>
         <div class="stat-grid">
@@ -233,6 +246,18 @@
           <div class="stat"><div class="label">語句・フレーズ</div><div class="value">${totalItems}</div></div>
           <div class="stat"><div class="label">完了レッスン</div><div class="value">${done} / ${COURSE.lessons.length}</div></div>
         </div>
+      </section>
+
+      <section class="panel" style="margin-top:18px;">
+        <h2 style="margin:0 0 8px;font-size:1.15rem;">多言語を勉強するなら、何から？</h2>
+        <ol class="start-list">
+          ${(WORLD_GREETINGS?.howToStart || [])
+            .map((line) => `<li>${escapeHtml(line)}</li>`)
+            .join("")}
+        </ol>
+        <p style="color:var(--muted);margin:10px 0 0;line-height:1.6;">
+          いまの軸は中国語。寄り道するなら <strong>世界の挨拶</strong> で音と文字に触れてから戻るのがおすすめです。
+        </p>
       </section>
 
       <div class="section-head">
@@ -323,7 +348,7 @@
                 <div class="meaning">${escapeHtml(item.ja)}</div>
                 ${item.note ? `<div class="note">${escapeHtml(item.note)}</div>` : ""}
               </div>
-              <button class="speak-btn" type="button" data-speak="${escapeHtml(item.zh)}" title="発音を聞く" aria-label="発音を聞く">🔊</button>
+              <button class="speak-btn" type="button" data-speak="${escapeHtml(item.zh)}" data-lang="zh-CN" title="発音を聞く" aria-label="発音を聞く">🔊</button>
             </div>
           `
             )
@@ -386,7 +411,7 @@
           <div class="flash-controls">
             <button class="btn btn-secondary" id="cardPrev">前へ</button>
             <button class="btn btn-secondary" id="cardNext">次へ</button>
-            <button class="btn btn-primary" data-speak="${escapeHtml(item.zh)}">発音を聞く</button>
+            <button class="btn btn-primary" data-speak="${escapeHtml(item.zh)}" data-lang="zh-CN">発音を聞く</button>
           </div>
         </aside>
       </div>
@@ -462,7 +487,7 @@
             .join("")}
         </div>
         <div class="quiz-controls">
-          <button class="btn btn-secondary" data-speak="${escapeHtml(q.zh)}">発音を聞く</button>
+          <button class="btn btn-secondary" data-speak="${escapeHtml(q.zh)}" data-lang="zh-CN">発音を聞く</button>
           <button class="btn btn-primary" id="quizNext" ${state.quizAnswered ? "" : "disabled"}>次へ</button>
         </div>
         <div class="quiz-result" id="quizFeedback" hidden></div>
@@ -489,7 +514,7 @@
             <div class="example">${escapeHtml(t.example)}</div>
             <div class="py">${escapeHtml(t.py)}</div>
             <p>${escapeHtml(t.tip)}</p>
-            <button class="btn btn-secondary" style="margin-top:12px;" data-speak="${escapeHtml(t.example)}">聞く</button>
+            <button class="btn btn-secondary" style="margin-top:12px;" data-speak="${escapeHtml(t.example)}" data-lang="zh-CN">聞く</button>
           </div>
         `
           )
@@ -505,13 +530,75 @@
         ${["妈|mā", "麻|má", "马|mǎ", "骂|mà"]
           .map((pair) => {
             const [zh, py] = pair.split("|");
-            return `<button type="button" data-speak="${zh}"><span class="zh">${zh}</span><span class="py">${py}</span></button>`;
+            return `<button type="button" data-speak="${zh}" data-lang="zh-CN"><span class="zh">${zh}</span><span class="py">${py}</span></button>`;
           })
           .join("")}
       </div>
       <div class="tip" style="margin-top:16px;">
         <strong>学習のコツ:</strong> 単語を覚えるとき、必ず声調記号付きピンインとセットで覚える。
         ローマ字だけだと別の語になってしまいます。
+      </div>
+    `;
+  }
+
+  function renderGreetings() {
+    const regions = [...new Set((WORLD_GREETINGS.items || []).map((x) => x.region))];
+    const filter = state.greetRegion || "すべて";
+    const items = (WORLD_GREETINGS.items || []).filter(
+      (item) => filter === "すべて" || item.region === filter
+    );
+
+    view.innerHTML = `
+      <div class="section-head">
+        <div>
+          <h2>${escapeHtml(WORLD_GREETINGS.title)}</h2>
+          <p>${escapeHtml(WORLD_GREETINGS.subtitle)}</p>
+        </div>
+      </div>
+      <div class="filter-row">
+        <button class="chip ${filter === "すべて" ? "active" : ""}" data-greet-region="すべて">すべて</button>
+        ${regions
+          .map(
+            (region) =>
+              `<button class="chip ${filter === region ? "active" : ""}" data-greet-region="${escapeHtml(region)}">${escapeHtml(region)}</button>`
+          )
+          .join("")}
+      </div>
+      <div class="greet-grid">
+        ${items
+          .map((item) => {
+            const hello = item.phrases.find((p) => p.kind === "hello") || item.phrases[0];
+            return `
+              <article class="greet-card">
+                <div class="greet-head">
+                  <span class="greet-flag" aria-hidden="true">${item.flag || ""}</span>
+                  <div>
+                    <strong>${escapeHtml(item.language)}</strong>
+                    <div class="greet-meta">${escapeHtml(item.country)} · ${escapeHtml(item.region)}</div>
+                  </div>
+                </div>
+                <div class="greet-hello">
+                  <div class="greet-text">${escapeHtml(hello.text)}</div>
+                  <div class="greet-roman">${escapeHtml(hello.roman)}</div>
+                  <div class="greet-ja">${escapeHtml(hello.ja)}</div>
+                </div>
+                <div class="greet-phrases">
+                  ${item.phrases
+                    .map(
+                      (p) => `
+                    <button type="button" class="greet-phrase" data-speak="${escapeHtml(p.text)}" data-lang="${escapeHtml(item.lang)}" title="${escapeHtml(p.ja)}">
+                      <span class="kind">${p.kind === "hello" ? "挨拶" : p.kind === "thanks" ? "お礼" : "別れ"}</span>
+                      <span class="txt">${escapeHtml(p.text)}</span>
+                      <span class="rom">${escapeHtml(p.roman)}</span>
+                    </button>
+                  `
+                    )
+                    .join("")}
+                </div>
+              </article>
+            `;
+          })
+          .join("")}
       </div>
     `;
   }
@@ -536,6 +623,9 @@
         break;
       case "tones":
         renderTones();
+        break;
+      case "greetings":
+        renderGreetings();
         break;
       default:
         renderHome();
@@ -586,7 +676,14 @@
 
     const speakBtn = e.target.closest("[data-speak]");
     if (speakBtn) {
-      speak(speakBtn.dataset.speak);
+      speak(speakBtn.dataset.speak, speakBtn.dataset.lang || "zh-CN");
+      return;
+    }
+
+    const greetRegion = e.target.closest("[data-greet-region]");
+    if (greetRegion) {
+      state.greetRegion = greetRegion.dataset.greetRegion;
+      render();
       return;
     }
 

@@ -496,6 +496,85 @@ button { cursor: pointer; }
 }
 .tts-toast[hidden] { display: none; }
 
+.start-list {
+  margin: 0;
+  padding-left: 1.2em;
+  color: var(--muted);
+  line-height: 1.7;
+}
+.start-list li + li { margin-top: 6px; }
+
+.greet-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 14px;
+}
+.greet-card {
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow);
+  padding: 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+.greet-head {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+}
+.greet-flag { font-size: 1.6rem; line-height: 1; }
+.greet-meta { color: var(--muted); font-size: 0.82rem; margin-top: 2px; }
+.greet-hello {
+  padding: 12px;
+  border-radius: 14px;
+  background: var(--bg-2);
+  text-align: center;
+}
+.greet-text {
+  font-size: clamp(1.4rem, 3vw, 1.9rem);
+  font-weight: 700;
+  line-height: 1.25;
+  word-break: break-word;
+}
+.greet-roman { color: var(--red); font-weight: 700; margin-top: 4px; }
+.greet-ja { color: var(--muted); font-size: 0.9rem; margin-top: 2px; }
+.greet-phrases { display: grid; gap: 8px; }
+.greet-phrase {
+  display: grid;
+  grid-template-columns: 3.2em 1fr;
+  grid-template-rows: auto auto;
+  column-gap: 10px;
+  row-gap: 2px;
+  text-align: left;
+  padding: 10px 12px;
+  border-radius: 12px;
+  border: 1px solid var(--line);
+  background: #fffdf9;
+}
+.greet-phrase:hover { border-color: #d8c3a8; background: var(--red-soft); }
+.greet-phrase .kind {
+  grid-row: 1 / span 2;
+  align-self: center;
+  font-size: 0.72rem;
+  font-weight: 700;
+  color: var(--blue);
+  background: var(--blue-soft);
+  border-radius: 999px;
+  padding: 4px 0;
+  text-align: center;
+}
+.greet-phrase .txt { font-weight: 700; word-break: break-word; }
+.greet-phrase .rom { color: var(--muted); font-size: 0.82rem; }
+
+@media (max-width: 900px) {
+  .greet-grid { grid-template-columns: 1fr 1fr; }
+}
+@media (max-width: 560px) {
+  .greet-grid { grid-template-columns: 1fr; }
+}
+
 @media (max-width: 900px) {
   .hero, .flash-wrap { grid-template-columns: 1fr; }
   .grid-3, .tone-grid, .tone-practice { grid-template-columns: 1fr 1fr; }
