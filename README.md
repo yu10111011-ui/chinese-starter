@@ -1,2 +1,75 @@
-# chinese-starter
-日本語話者向け・簡体字中国語の入門 Web 教材（ピンイン・レッスン・フラッシュカード・クイズ）
+# Chinese Starter
+
+日本語話者向けの **簡体字中国語** 入門 Web 教材です。
+
+ブラウザだけで学べます（インストール不要）。
+
+## できること
+
+- **6 レッスン**: 声調 / あいさつ / 自己紹介 / 数字 / 飲食 / 基本動詞
+- **ピンイン + 日本語訳 + メモ**
+- **発音再生**（ブラウザの Speech Synthesis / `zh-CN`）
+- **フラッシュカード**
+- **意味クイズ**
+- **進捗のローカル保存**（`localStorage`）
+
+## 使い方
+
+### ローカル
+
+リポジトリを開いて `index.html` をブラウザで開くか、簡易サーバーを起動します。
+
+```bash
+# Python
+python -m http.server 5173
+
+# または Node
+npx --yes serve -l 5173
+```
+
+→ http://localhost:5173/
+
+### GitHub Pages
+
+Settings → Pages → Branch: `main` / folder: `/ (root)` を選ぶと公開できます。
+
+想定 URL:
+
+`https://yu10111011-ui.github.io/chinese-starter/`
+
+## 学習の進め方（おすすめ）
+
+1. **声調**タブで mā / má / mǎ / mà を聞き比べる
+2. Lesson 1 → 2 の順にフレーズを音読
+3. 同じ単元を **カード** と **クイズ** で定着
+4. 1 日 10〜15 分で「完了」を積み上げる
+
+## 構成
+
+```
+index.html      # 画面シェル
+style.css       # スタイル
+app.js          # 画面遷移・カード・クイズ・進捗
+data/course.js  # レッスン内容（ここを編集して教材を増やせる）
+```
+
+## 教材を増やす
+
+`data/course.js` の `lessons` にオブジェクトを追加してください。
+
+```js
+{
+  id: "l7",
+  title: "新しい単元",
+  summary: "一言説明",
+  preview: "汉字",
+  tip: "学習のヒント",
+  items: [
+    { zh: "你好", py: "nǐ hǎo", ja: "こんにちは", note: "メモ" }
+  ]
+}
+```
+
+## ライセンス
+
+個人学習用。自由に改変・公開して構いません。
