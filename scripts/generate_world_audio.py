@@ -17,6 +17,8 @@ MANIFEST = ROOT / "data" / "audio-manifest.js"
 VOICE_BY_LANG = {
     "zh-CN": "zh-CN-XiaoxiaoNeural",
     "zh": "zh-CN-XiaoxiaoNeural",
+    "ja-JP": "ja-JP-NanamiNeural",
+    "ja": "ja-JP-NanamiNeural",
     "ko-KR": "ko-KR-SunHiNeural",
     "ko": "ko-KR-SunHiNeural",
     "en-US": "en-US-JennyNeural",
@@ -116,20 +118,23 @@ def collect_jobs() -> list[tuple[str, str, str]]:
         text = m.group(1).strip()
         jobs[("zh", text)] = VOICE_BY_LANG["zh-CN"]
 
-    # World greetings
-    greetings_path = ROOT / "data" / "greetings.js"
-    raw = greetings_path.read_text(encoding="utf-8")
-    # Split on language objects roughly via id/lang/phrases
-    for block in re.finditer(
-        r'id:\s*"([^"]+)"[\s\S]*?lang:\s*"([^"]+)"[\s\S]*?phrases:\s*\[([\s\S]*?)\]',
-        raw,
-    ):
-        _item_id, lang, phrases_block = block.group(1), block.group(2), block.group(3)
-        pack = pack_key(lang)
-        voice = voice_for(lang)
-        for m in re.finditer(r'text:\s*"([^"]+)"', phrases_block):
-            text = m.group(1).strip()
-            jobs[(pack, text)] = voice
+    def collect_from_file(path: Path, array_name: str) -> None:
+        if not path.exists():
+            return
+        raw = path.read_text(encoding="utf-8")
+        for block in re.finditer(
+            rf'id:\s*"([^"]+)"[\s\S]*?lang:\s*"([^"]+)"[\s\S]*?{array_name}:\s*\[([\s\S]*?)\]',
+            raw,
+        ):
+            _item_id, lang, phrases_block = block.group(1), block.group(2), block.group(3)
+            pack = pack_key(lang)
+            voice = voice_for(lang)
+            for m in re.finditer(r'text:\s*"([^"]+)"', phrases_block):
+                text = m.group(1).strip()
+                jobs[(pack, text)] = voice
+
+    collect_from_file(ROOT / "data" / "greetings.js", "phrases")
+    collect_from_file(ROOT / "data" / "food.js", "words")
 
     return [(pack, text, voice) for (pack, text), voice in sorted(jobs.items())]
 

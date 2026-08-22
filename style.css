@@ -568,6 +568,10 @@ button { cursor: pointer; }
 .greet-phrase .txt { font-weight: 700; word-break: break-word; }
 .greet-phrase .rom { color: var(--muted); font-size: 0.82rem; }
 
+.food-card .greet-hello {
+  background: linear-gradient(135deg, #f7ebd3, #f7e2de);
+}
+
 @media (max-width: 900px) {
   .greet-grid { grid-template-columns: 1fr 1fr; }
 }

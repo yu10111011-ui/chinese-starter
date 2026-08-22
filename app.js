@@ -11,6 +11,7 @@
     cardFlipped: false,
     cardFilter: "all",
     greetRegion: "すべて",
+    foodRegion: "すべて",
     quizIndex: 0,
     quizScore: 0,
     quizAnswered: false,
@@ -338,6 +339,7 @@
           <div class="hero-actions">
             <button class="btn btn-primary" data-go="lessons">レッスンを始める</button>
             <button class="btn btn-secondary" data-go="greetings">世界の挨拶</button>
+            <button class="btn btn-secondary" data-go="foods">世界の食べ物</button>
             <button class="btn btn-ghost" data-go="tones">声調を見る</button>
           </div>
         </div>
@@ -642,6 +644,19 @@
     `;
   }
 
+  function kindLabel(kind, mode) {
+    if (mode === "greet") {
+      if (kind === "hello") return "挨拶";
+      if (kind === "thanks") return "お礼";
+      return "別れ";
+    }
+    if (kind === "dish") return "料理";
+    if (kind === "drink") return "飲み物";
+    if (kind === "staple") return "主食";
+    if (kind === "ingredient") return "食材";
+    return "単語";
+  }
+
   function renderGreetings() {
     const regions = [...new Set((WORLD_GREETINGS.items || []).map((x) => x.region))];
     const filter = state.greetRegion || "すべて";
@@ -688,9 +703,71 @@
                     .map(
                       (p) => `
                     <button type="button" class="greet-phrase" data-speak="${escapeHtml(p.text)}" data-lang="${escapeHtml(item.lang)}" title="${escapeHtml(p.ja)}">
-                      <span class="kind">${p.kind === "hello" ? "挨拶" : p.kind === "thanks" ? "お礼" : "別れ"}</span>
+                      <span class="kind">${kindLabel(p.kind, "greet")}</span>
                       <span class="txt">${escapeHtml(p.text)}</span>
                       <span class="rom">${escapeHtml(p.roman)}</span>
+                    </button>
+                  `
+                    )
+                    .join("")}
+                </div>
+              </article>
+            `;
+          })
+          .join("")}
+      </div>
+    `;
+  }
+
+  function renderFoods() {
+    const regions = [...new Set((WORLD_FOODS.items || []).map((x) => x.region))];
+    const filter = state.foodRegion || "すべて";
+    const items = (WORLD_FOODS.items || []).filter(
+      (item) => filter === "すべて" || item.region === filter
+    );
+
+    view.innerHTML = `
+      <div class="section-head">
+        <div>
+          <h2>${escapeHtml(WORLD_FOODS.title)}</h2>
+          <p>${escapeHtml(WORLD_FOODS.subtitle)}</p>
+        </div>
+      </div>
+      <div class="filter-row">
+        <button class="chip ${filter === "すべて" ? "active" : ""}" data-food-region="すべて">すべて</button>
+        ${regions
+          .map(
+            (region) =>
+              `<button class="chip ${filter === region ? "active" : ""}" data-food-region="${escapeHtml(region)}">${escapeHtml(region)}</button>`
+          )
+          .join("")}
+      </div>
+      <div class="greet-grid">
+        ${items
+          .map((item) => {
+            const highlight = item.words[0];
+            return `
+              <article class="greet-card food-card">
+                <div class="greet-head">
+                  <span class="greet-flag" aria-hidden="true">${item.flag || ""}</span>
+                  <div>
+                    <strong>${escapeHtml(item.language)}</strong>
+                    <div class="greet-meta">${escapeHtml(item.country)} · ${escapeHtml(item.region)}</div>
+                  </div>
+                </div>
+                <div class="greet-hello">
+                  <div class="greet-text">${escapeHtml(highlight.text)}</div>
+                  <div class="greet-roman">${escapeHtml(highlight.roman)}</div>
+                  <div class="greet-ja">${escapeHtml(highlight.ja)}</div>
+                </div>
+                <div class="greet-phrases">
+                  ${item.words
+                    .map(
+                      (w) => `
+                    <button type="button" class="greet-phrase" data-speak="${escapeHtml(w.text)}" data-lang="${escapeHtml(item.lang)}" title="${escapeHtml(w.ja)}">
+                      <span class="kind">${kindLabel(w.kind, "food")}</span>
+                      <span class="txt">${escapeHtml(w.text)}</span>
+                      <span class="rom">${escapeHtml(w.roman)} · ${escapeHtml(w.ja)}</span>
                     </button>
                   `
                     )
@@ -727,6 +804,9 @@
         break;
       case "greetings":
         renderGreetings();
+        break;
+      case "foods":
+        renderFoods();
         break;
       default:
         renderHome();
@@ -784,6 +864,13 @@
     const greetRegion = e.target.closest("[data-greet-region]");
     if (greetRegion) {
       state.greetRegion = greetRegion.dataset.greetRegion;
+      render();
+      return;
+    }
+
+    const foodRegion = e.target.closest("[data-food-region]");
+    if (foodRegion) {
+      state.foodRegion = foodRegion.dataset.foodRegion;
       render();
       return;
     }
