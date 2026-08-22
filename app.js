@@ -230,10 +230,35 @@
     return true;
   }
 
+  function localAudioUrl(text, langCode) {
+    const prefix = langPrefix(langCode);
+    const pack = (window.AUDIO_MANIFEST && window.AUDIO_MANIFEST[prefix]) || null;
+    if (!pack) return null;
+    const rel = pack[text];
+    if (!rel) return null;
+    // Same-origin relative URL (Brave-safe; not blocked by third-party shields).
+    return rel;
+  }
+
   // Keep this synchronous enough for autoplay policies: do not await before first play().
   function speak(text, langCode = "zh-CN") {
     if (!text) return;
     const wanted = normalizeLang(langCode);
+
+    // Prefer bundled same-origin MP3 (works in Brave with shields up).
+    const localUrl = localAudioUrl(text, wanted);
+    if (localUrl) {
+      playAudioUrl(localUrl).catch(() => {
+        // Fall through to OS / online if local file missing on older deploy.
+        speakWithoutLocal(text, wanted);
+      });
+      return;
+    }
+
+    speakWithoutLocal(text, wanted);
+  }
+
+  function speakWithoutLocal(text, wanted) {
     refreshVoices();
 
     const cached = preferredVoiceByLang[wanted];
@@ -245,11 +270,14 @@
       return;
     }
 
-    // No matching OS voice (common on Japanese Windows). Use online audio immediately
-    // while still inside the user-click gesture — awaiting voiceschanged would break play().
     if (!voiceWarningShown[wanted]) {
       voiceWarningShown[wanted] = true;
-      showVoiceToast(`端末に「${wanted}」ボイスがないため、オンライン発音を使います。`);
+      const braveHint = /brave/i.test(navigator.userAgent || "")
+        ? " Braveのシールドが外部音声を遮断している場合があります。"
+        : "";
+      showVoiceToast(
+        `端末に「${wanted}」ボイスがないため、オンライン発音を試します。${braveHint}`
+      );
     }
     speakOnlineFallback(text, wanted);
   }
@@ -325,6 +353,7 @@
         </ol>
         <p style="color:var(--muted);margin:10px 0 0;line-height:1.6;">
           いまの軸は中国語。寄り道するなら <strong>世界の挨拶</strong> で音と文字に触れてから戻るのがおすすめです。
+          中国語の🔊はアプリ内音声なので、Braveでもそのまま鳴ります。
         </p>
       </section>
 
