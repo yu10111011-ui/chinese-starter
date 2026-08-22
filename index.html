@@ -1,0 +1,44 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Chinese Starter — 簡体字中国語入門</title>
+  <meta name="description" content="日本語話者向けの簡体字中国語 Web 教材。ピンイン・レッスン・フラッシュカード・クイズ。" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+SC:wght@400;500;700&family=Noto+Sans+JP:wght@400;500;700&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body>
+  <div class="app">
+    <header class="topbar">
+      <div class="brand" data-nav="home">
+        <span class="brand-mark" aria-hidden="true">汉</span>
+        <div>
+          <strong>Chinese Starter</strong>
+          <span class="brand-sub">簡体字 · 入門</span>
+        </div>
+      </div>
+      <nav class="nav" aria-label="メイン">
+        <button type="button" class="nav-btn active" data-nav="home">ホーム</button>
+        <button type="button" class="nav-btn" data-nav="lessons">レッスン</button>
+        <button type="button" class="nav-btn" data-nav="cards">カード</button>
+        <button type="button" class="nav-btn" data-nav="quiz">クイズ</button>
+        <button type="button" class="nav-btn" data-nav="tones">声調</button>
+      </nav>
+      <div class="progress-chip" id="progressChip" title="学習進捗">0%</div>
+    </header>
+
+    <main id="view" class="view"></main>
+
+    <footer class="footer">
+      <span>ブラウザだけで完結 · 進捗は端末に保存</span>
+      <a href="https://github.com/yu10111011-ui/chinese-starter" target="_blank" rel="noopener">GitHub</a>
+    </footer>
+  </div>
+
+  <script src="data/course.js"></script>
+  <script src="app.js"></script>
+</body>
+</html>
