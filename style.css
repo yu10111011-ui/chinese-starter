@@ -479,6 +479,23 @@ button { cursor: pointer; }
   color: var(--muted);
 }
 
+.tts-toast {
+  position: fixed;
+  left: 50%;
+  bottom: 24px;
+  transform: translateX(-50%);
+  z-index: 50;
+  max-width: min(520px, calc(100vw - 24px));
+  padding: 12px 16px;
+  border-radius: 14px;
+  background: #2a2118;
+  color: #fff8ef;
+  box-shadow: var(--shadow);
+  font-size: 0.92rem;
+  line-height: 1.5;
+}
+.tts-toast[hidden] { display: none; }
+
 @media (max-width: 900px) {
   .hero, .flash-wrap { grid-template-columns: 1fr; }
   .grid-3, .tone-grid, .tone-practice { grid-template-columns: 1fr 1fr; }

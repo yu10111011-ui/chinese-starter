@@ -47,16 +47,130 @@
     progressChip.textContent = `${pct}%`;
   }
 
-  function speak(text) {
+  let cachedVoices = [];
+  let preferredZhVoice = null;
+  let ttsAudio = null;
+  let voiceWarningShown = false;
+
+  function refreshVoices() {
     if (!window.speechSynthesis) return;
+    cachedVoices = window.speechSynthesis.getVoices() || [];
+    preferredZhVoice = pickChineseVoice(cachedVoices);
+  }
+
+  function scoreChineseVoice(voice) {
+    const lang = (voice.lang || "").replace(/_/g, "-").toLowerCase();
+    const name = (voice.name || "").toLowerCase();
+    const blob = `${lang} ${name}`;
+
+    // Never use Japanese / Korean / etc. for Chinese text.
+    if (/^ja\b|japanese|日本語|ヒラギノ|haruka|ayumi|ichiro|kyoko|ojiisan|sayaka|show/.test(blob)) {
+      return -1000;
+    }
+
+    let score = 0;
+    if (lang === "zh-cn" || lang === "zh-hans" || lang === "cmn-hans-cn") score += 100;
+    else if (lang.startsWith("zh-cn")) score += 90;
+    else if (lang.startsWith("zh-hans")) score += 85;
+    else if (lang === "zh" || lang.startsWith("zh-")) score += 50;
+    else if (/chinese|中文|普通话|國語|国语|mandarin/.test(blob)) score += 40;
+    else return -1;
+
+    // Prefer Mainland / Simplified.
+    if (/yaoyao|huihui|xiaoxiao|xiaoyi|yunxi|yunyang|zh-cn|simplified|普通话|中国/.test(blob)) score += 30;
+    if (/taiwan|zh-tw|hk|hong kong|cantonese|粤|yue/.test(blob)) score -= 20;
+    if (voice.localService) score += 5;
+    return score;
+  }
+
+  function pickChineseVoice(voices) {
+    let best = null;
+    let bestScore = 0;
+    for (const voice of voices) {
+      const score = scoreChineseVoice(voice);
+      if (score > bestScore) {
+        best = voice;
+        bestScore = score;
+      }
+    }
+    return best;
+  }
+
+  function showVoiceToast(message) {
+    let el = document.getElementById("ttsToast");
+    if (!el) {
+      el = document.createElement("div");
+      el.id = "ttsToast";
+      el.className = "tts-toast";
+      document.body.appendChild(el);
+    }
+    el.textContent = message;
+    el.hidden = false;
+    clearTimeout(showVoiceToast._timer);
+    showVoiceToast._timer = setTimeout(() => {
+      el.hidden = true;
+    }, 5200);
+  }
+
+  function speakOnlineFallback(text) {
+    if (ttsAudio) {
+      ttsAudio.pause();
+      ttsAudio = null;
+    }
+    // Short phrases only; used when the OS has no Chinese voice.
+    const url =
+      "https://translate.google.com/translate_tts?ie=UTF-8&client=tw-ob&tl=zh-CN&q=" +
+      encodeURIComponent(text);
+    ttsAudio = new Audio(url);
+    return ttsAudio.play().catch(() => {
+      showVoiceToast(
+        "中国語ボイスが見つかりません。Windowsの「設定 → 時刻と言語 → 音声」で中国語（簡体字）の音声を追加してください。"
+      );
+    });
+  }
+
+  function speakWithVoice(text, voice) {
     window.speechSynthesis.cancel();
     const utter = new SpeechSynthesisUtterance(text);
-    utter.lang = "zh-CN";
+    utter.lang = voice.lang || "zh-CN";
+    utter.voice = voice;
     utter.rate = 0.9;
-    const voices = window.speechSynthesis.getVoices();
-    const zh = voices.find((v) => /zh[-_]CN|Chinese/i.test(`${v.lang} ${v.name}`));
-    if (zh) utter.voice = zh;
     window.speechSynthesis.speak(utter);
+  }
+
+  async function speak(text) {
+    if (!text) return;
+
+    // Ensure voices are loaded (Chrome/Edge often return [] until voiceschanged).
+    if (window.speechSynthesis && cachedVoices.length === 0) {
+      refreshVoices();
+      if (cachedVoices.length === 0) {
+        await new Promise((resolve) => {
+          const done = () => {
+            window.speechSynthesis.removeEventListener("voiceschanged", done);
+            resolve();
+          };
+          window.speechSynthesis.addEventListener("voiceschanged", done);
+          setTimeout(done, 700);
+        });
+        refreshVoices();
+      }
+    }
+
+    const voice = preferredZhVoice || pickChineseVoice(cachedVoices);
+    preferredZhVoice = voice;
+
+    if (voice) {
+      speakWithVoice(text, voice);
+      return;
+    }
+
+    // Do NOT fall back to Japanese OS voice (it reads 汉字 as Japanese).
+    if (!voiceWarningShown) {
+      voiceWarningShown = true;
+      showVoiceToast("端末に中国語ボイスがないため、オンライン発音に切り替えます。");
+    }
+    speakOnlineFallback(text);
   }
 
   function setRoute(route, lessonId = null) {
@@ -557,7 +671,14 @@
   });
 
   if (window.speechSynthesis) {
-    window.speechSynthesis.onvoiceschanged = () => {};
+    refreshVoices();
+    window.speechSynthesis.addEventListener("voiceschanged", refreshVoices);
+    // Some browsers need a kick to populate voices.
+    try {
+      window.speechSynthesis.getVoices();
+    } catch {
+      /* ignore */
+    }
   }
 
   updateProgressChip();
