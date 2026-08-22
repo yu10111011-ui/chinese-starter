@@ -245,6 +245,17 @@
     return null;
   }
 
+  function localFoodImageUrl(text, langCode) {
+    const foodMap = (window.IMAGE_MANIFEST && window.IMAGE_MANIFEST.food) || {};
+    const wanted = normalizeLang(langCode).toLowerCase();
+    const candidates = [wanted, langPrefix(wanted)];
+    for (const key of candidates) {
+      const pack = foodMap[key];
+      if (pack && pack[text]) return pack[text];
+    }
+    return null;
+  }
+
   // Keep this synchronous enough for autoplay policies: do not await before first play().
   function speak(text, langCode = "zh-CN") {
     if (!text) return;
@@ -746,6 +757,7 @@
         ${items
           .map((item) => {
             const highlight = item.words[0];
+            const heroImage = localFoodImageUrl(highlight.text, item.lang);
             return `
               <article class="greet-card food-card">
                 <div class="greet-head">
@@ -755,6 +767,11 @@
                     <div class="greet-meta">${escapeHtml(item.country)} · ${escapeHtml(item.region)}</div>
                   </div>
                 </div>
+                ${
+                  heroImage
+                    ? `<div class="food-hero"><img src="${escapeHtml(heroImage)}" alt="${escapeHtml(highlight.ja)}" loading="lazy" /></div>`
+                    : ""
+                }
                 <div class="greet-hello">
                   <div class="greet-text">${escapeHtml(highlight.text)}</div>
                   <div class="greet-roman">${escapeHtml(highlight.roman)}</div>
@@ -762,15 +779,20 @@
                 </div>
                 <div class="greet-phrases">
                   ${item.words
-                    .map(
-                      (w) => `
-                    <button type="button" class="greet-phrase" data-speak="${escapeHtml(w.text)}" data-lang="${escapeHtml(item.lang)}" title="${escapeHtml(w.ja)}">
-                      <span class="kind">${kindLabel(w.kind, "food")}</span>
+                    .map((w) => {
+                      const img = localFoodImageUrl(w.text, item.lang);
+                      return `
+                    <button type="button" class="greet-phrase food-phrase" data-speak="${escapeHtml(w.text)}" data-lang="${escapeHtml(item.lang)}" title="${escapeHtml(w.ja)}">
+                      ${
+                        img
+                          ? `<img class="food-thumb" src="${escapeHtml(img)}" alt="" loading="lazy" />`
+                          : `<span class="kind">${kindLabel(w.kind, "food")}</span>`
+                      }
                       <span class="txt">${escapeHtml(w.text)}</span>
                       <span class="rom">${escapeHtml(w.roman)} · ${escapeHtml(w.ja)}</span>
                     </button>
-                  `
-                    )
+                  `;
+                    })
                     .join("")}
                 </div>
               </article>
@@ -778,6 +800,7 @@
           })
           .join("")}
       </div>
+      <p class="food-credit">画像はアプリ内に保存しています（Wikimedia Commons / 学習用生成）。Braveでも表示できます。</p>
     `;
   }
 
